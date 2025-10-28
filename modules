@@ -1,0 +1,37 @@
+# LoRaRF	LoRa driver for SX126x
+# pycryptodome	Cryptographic functions (AES256)
+# bless		BTLE server
+# aiotools	asyncio utilities
+# pyserial_asyncio	async serial port access
+
+pip install LoRaRF pycryptodome bless aiotools pyserial_asyncio
+
+# Not sure on these - only needed if we write to files
+# tomlkit
+# tomlkit-extras  ?
+
+pip install tomlkit tomlkit-extras
+
+# scapy=	For ESP-NOW. Has to be 2.5.0, newer versions don't work
+pip install scapy==2.5.0
+
+
+cd venv/bin/
+mv python python.orig
+cp python.orig python
+sudo setcap cap_net_raw=pe  python
+
+
+# systemctl stop NetworkManager
+# sh prep.sh wlo1 1
+
+
+# LoRa interface - Waveshare HAT
+
+/boot/firmware/config.txt
+dtoverlay=spi0-1cs,cs0_pin=21
+
+Raspberry Pi OS (Bookworm) - rpi.gpio doesn't work any more, needs replacing
+
+pip uninstall rpi.gpio
+pip install rpi-lgpio

@@ -1,0 +1,226 @@
+# Meshcore config file
+#
+# This file is in TOML format
+# https://toml.io/en/
+#
+
+# This file defines one of more interfaces, which are means of communicating
+# with the mesh. They include:
+#   * LoRa
+#   * ESP-NOW
+#   * Companion radio hack
+#   * Mock interface
+#
+# Each interface has a name, and a type (which defaults to the name)
+
+# Which interfaces are we using?
+interfaces = ["mock"]
+
+# Each "device" is a meshcore application (such as a companion radio or room
+# server), using the interface(s) to communicate with the mesh. Applications
+# are defined below
+
+# Which devices are we running
+devices = ["companion", "room", "repeater"]
+
+# The dispatcher is responsible for moving data around
+[dispatcher]
+
+# Whether or not, if there multiple devices, they can talk to each other.
+# Zero-hop packets (flood and direct) sent by one device will be delivered
+# to the others. Any outgoing packet will only be sent once.
+#
+# This means you can run companion devices which are able to talk to
+# repeaters and room servers, all under one instance of meshcore-pi, but
+# a repeater running in meshcore-pi won't repeat packets to/from other
+# devices running under the same instance
+#
+# This setting is only relevant if you are running multiple devices
+pass_internal = true
+
+# Interface settings
+
+# Waveshare LoRa/GNSS HAT
+[interface.waveshare]
+# What kind of interface is this?
+type="lora"
+
+# UK/EU default
+frequency=869618000
+sf=8
+bw=62500
+cr=8
+txpower=22
+
+# Use DIO2 as RF switch
+dio2.rfswitch = true
+
+# HT-RA62 LoRa interface
+[interface.htra62]
+# What kind of interface is this?
+type="lora"
+
+# UK/EU default
+frequency=869618000
+sf=8
+bw=62500
+cr=8
+txpower=22
+
+# Use DIO3 to control TXCO
+# Valid voltages are: 1.6, 1.7, 1.8, 2.2, 2.4, 2.7, 3.0, 3.3
+dio3.voltage = 1.8
+# Valid delay values are 2.5, 5, 10
+dio3.tcxo_delay = 10
+
+
+[interface.espnow]
+# For ESP-NOW, the interface will have to be configured in monitor mode and
+# be running on channel 1.
+# Meshcore will have to have some way of accessing raw network sockets.
+# See README.md for more details.
+
+# Interface name
+device = "wlan0"
+
+[interface.mock]
+# This interface reads packets from file; if a file is specified.
+# Transmitted packets are discarded.
+
+# File to read from; if not specified, the mock interface is just a null
+# source/sink.
+# File contents are one packet per line, in hex. Comment lines starting
+# with # are ignored
+# file = "mockfile.txt"
+
+# Go back to the start of the file when the end is reached?
+# repeat = false
+
+# Device profile settings
+
+[device.companion]
+
+# What kind of device is this? Defaults to the device name
+# type = "companion"
+
+# Default name is "Companion ########" (8 bytes of public key)
+# name = "My Mesh Device"
+# Default is to create a new private/public key
+# privatekey="[insert hex private key here]"
+
+# Default is no latitude/longitude
+# lat = 0
+# lon = 0
+
+# File to store contacts in
+contacts = "contacts.mesh"
+
+# Number of channels to support. The theoretical maximum is 255, but since
+# the Meshcore app reads all channel definitions on startup - even empty
+# ones - a smaller, more practical number is desirable
+channels = 32
+
+# File to store channels in. Cannot be shared between companion devices.
+# If not specified, channels are stored in memory and lost if meshcore-pi
+# restarts
+channelfile = "channels.json"
+
+# Add the public channel to the list if it's not already there?
+add_public_channel = true
+
+# How does the companion radio communicate with the app? "serial" or "wifi"?
+interface = "wifi"
+
+# wifi.port = 5000
+# Default is all interfaces (v4 and v6)
+# wifi.listen = '0.0.0.0'
+
+# Serial port
+# serial.port = "/dev/ttyS0"
+# serial.speed = 115200
+
+[device.room]
+
+# Default name is "Room ########" (8 bytes of public key)
+# name = "Meshcore-Pi Room"
+
+# Default is to create a new private/public key
+# privatekey="[insert key here]"
+
+# Default is no latitude/longitude
+# lat = 0
+# lon = 0
+
+# How often (and, indeed, whether) to send adverts
+# Direct advert interval (minutes, default: 0; 0 = once only at startup,
+# -1 = never
+#advert.direct = 0
+
+# Flood advert interval (hours, default: -1); 0 = once only at startup,
+# -1 = never
+#advert.flood = -1
+
+# Optional welcome message, sent to clients the first time they connect.
+# Long messages will be broken up into message-sized chunks, however it is
+# best to keep it short (ideally to fit into a single message).
+welcome="Welcome to the room server. Please play nicely."
+
+# Passwords can't currently be changed via the CLI
+# If admin.password is not set, no password logins are allowed
+admin.password = "password"
+# Public keys which can log in without needing a password
+admin.keys = ["....32 bytes of hex public key...."]
+
+# Guest password. If not set, password logins are not allowed. If you want
+# to allow anyone in regardless of password, use guest.open
+guest.password = "hello"
+# Public keys which can log in without a password
+guest.keys = ["...32 bytes of hex public key....", "....another one...."]
+# Let in anyone
+guest.open = true
+
+# Read only?
+readonly = false
+
+# If readonly is set, password you need to log in with to write to the room.
+# Admins can also write.
+# Leave unset to prevent password logins
+writer.password = "writer"
+# Public keys which can log in
+writer.keys = ["...32 bytes of hex public key...."]
+
+
+[device.repeater]
+
+# Default name is "Repeater ########" (8 bytes of public key)
+# name = "Meshcore-Pi Repeater"
+
+# Default is to create a new private/public key
+# privatekey="[insert key here]"
+
+# Default is no latitude/longitude
+# lat = 0
+# lon = 0
+
+# How often (and, indeed, whether) to send adverts
+# Direct advert interval (minutes, default: 0; 0 = once only at startup,
+# -1 = never
+#advert.direct = 0
+
+# Flood advert interval (hours, default: -1); 0 = once only at startup,
+# -1 = never
+#advert.flood = -1
+
+# Passwords can't currently be changed via the CLI
+# If admin.password is not set, no password logins are allowed
+admin.password = "password"
+# Public keys which can log in without needing a password
+admin.keys = ["....32 bytes of hex public key...."]
+
+# Guest password. If not set, password logins are not allowed. If you want to allow anyone in regardless
+# of password, use guest.open
+guest.password = "hello"
+# Public keys which can log in without a password
+guest.keys = ["...32 bytes of hex public key....", "....another one...."]
+# Let in anyone
+guest.open = true

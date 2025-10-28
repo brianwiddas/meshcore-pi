@@ -1,0 +1,67 @@
+# Read-only device config file
+#
+
+interfaces = ["companion"]
+
+# File to store received contacts in, if any
+# contacts = "readonlycontacts.txt"
+
+# Private key (for decoding messages)
+# key = ...
+
+# Write statistics every 5 minutes to this file (default, none)
+# statsfile = "readonlystats.log"
+
+# Additional channels to attempt to decode messages for as well as Public
+channels = ['#meshcorepi', 'test']
+
+# Keys for any non-hashtag channels
+[channel]
+test = '00112233445566778899aabbccddeeff'
+
+
+# Mesh radio interfaces
+
+# Waveshare LoRa/GNSS HAT
+[interface.waveshare]
+
+# What kind of interface is this?
+type="lora"
+
+# UK/EU default
+frequency=869618000
+sf=8
+bw=62500
+cr=8
+
+# Use DIO2 as RF switch
+dio2.rfswitch = true
+
+
+# HT-RA62 LoRa interface
+[interface.htra62]
+
+type="lora"
+
+# UK/EU default
+frequency=869618000
+sf=8
+bw=62500
+cr=8
+
+# Use DIO3 to control TXCO
+# Valid voltages are: 1.6, 1.7, 1.8, 2.2, 2.4, 2.7, 3.0, 3.3
+dio3.voltage = 1.8
+# Valid delay values are 2.5, 5, 10
+dio3.tcxo_delay = 10
+
+[interface.espnow]
+# Interface name
+device = "mon0"
+
+[interface.mock]
+file = "mock.txt"
+
+[interface.companion]
+# Default connection is /dev/ttyUSB0
+# port = "/dev/ttyUSB0"

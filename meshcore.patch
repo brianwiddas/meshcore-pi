@@ -1,0 +1,79 @@
+# Patches meshcore companion radio to add CMD_SEND_RAW_PACKET
+# patch -p 1 <this.patch
+diff --git a/examples/companion_radio/MyMesh.cpp b/examples/companion_radio/MyMesh.cpp
+index 1fa5478..f7984cb 100644
+--- a/examples/companion_radio/MyMesh.cpp
++++ b/examples/companion_radio/MyMesh.cpp
+@@ -49,10 +49,13 @@
+ // NOTE: CMD range 44..49 parked, potentially for WiFi operations
+ #define CMD_SEND_BINARY_REQ           50
+ #define CMD_FACTORY_RESET             51
+ #define CMD_SEND_PATH_DISCOVERY_REQ   52
+ 
++// Unofficial command to send raw packet
++#define CMD_SEND_RAW_PACKET           0xc0
++
+ #define RESP_CODE_OK                  0
+ #define RESP_CODE_ERR                 1
+ #define RESP_CODE_CONTACTS_START      2  // first reply to CMD_GET_CONTACTS
+ #define RESP_CODE_CONTACT             3  // multiple of these (after CMD_GET_CONTACTS)
+ #define RESP_CODE_END_OF_CONTACTS     4  // last reply to CMD_GET_CONTACTS
+@@ -1462,10 +1465,58 @@ void MyMesh::handleCmdFrame(size_t len) {
+       delay(1000);
+       board.reboot();  // doesn't return
+     } else {
+       writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+     }
++  } else if (cmd_frame[0] == CMD_SEND_RAW_PACKET) {
++    // Send the provided raw packet, which includes header, path and payload
++    //
++    // This is really only for testing, and should not be used for normal operation.
++    //
++    // This code has been "borrowed" from Dispatcher::checkRecv()
++    auto pkt = _mgr->allocNew();
++    if (pkt == NULL) {
++      MESH_DEBUG_PRINTLN("%s CMD_SEND_RAW_PACKET: WARNING: received data, no unused packets available!", getLogDateTime());
++    } else {
++      int i = 1;
++
++      pkt->header = cmd_frame[i++];
++      if (pkt->hasTransportCodes()) {
++        memcpy(&pkt->transport_codes[0], &cmd_frame[i], 2); i += 2;
++        memcpy(&pkt->transport_codes[1], &cmd_frame[i], 2); i += 2;
++      } else {
++        pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
++      }
++      pkt->path_len = cmd_frame[i++];
++
++      if (pkt->path_len > MAX_PATH_SIZE || i + pkt->path_len > len) {
++        MESH_DEBUG_PRINTLN("%s CMD_SEND_RAW_PACKET: partial or corrupt packet received, len=%d", getLogDateTime(), len);
++        _mgr->free(pkt);  // put back into pool
++        pkt = NULL;
++      } else {
++        memcpy(pkt->path, &cmd_frame[i], pkt->path_len); i += pkt->path_len;
++
++        pkt->payload_len = len - i;  // payload is remainder
++        if (pkt->payload_len > sizeof(pkt->payload)) {
++          MESH_DEBUG_PRINTLN("%s CMD_SEND_RAW_PACKET: packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
++          _mgr->free(pkt);  // put back into pool
++          pkt = NULL;
++        } else {
++          memcpy(pkt->payload, &cmd_frame[i], pkt->payload_len);
++
++          // SNR is not used on outgoing packets, so just set to 0
++          pkt->_snr = 0 * 4.0f;
++
++          // Send the packet. Don't free it afterwards, as that will be done when it's removed from the queue and transmitted.
++          sendPacket(pkt, 0, 0);
++          writeOKFrame();
++        }
++      }
++    }
++    if (pkt == NULL) {
++      writeErrFrame(ERR_CODE_TABLE_FULL);
++    }
+   } else {
+     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+     MESH_DEBUG_PRINTLN("ERROR: unknown command: %02X", cmd_frame[0]);
+   }
+ }
