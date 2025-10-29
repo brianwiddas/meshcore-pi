@@ -658,7 +658,7 @@ class CompanionRadio(BasicMesh):
                     lon = int(latlon[1] * 1000000)
 
                 # Lat, long, reserved, telemetry modes, manual add contacts, radio freq,bw,sf,cr
-                response += struct.pack("<LLHBBLLBB", lat, lon, 0, 0, 0, r_freq, r_bw, r_sf, r_cr)
+                response += struct.pack("<llHBBLLBB", lat, lon, 0, 0, 0, r_freq, r_bw, r_sf, r_cr)
                 # Name of the device
                 response += self.me.name
 
