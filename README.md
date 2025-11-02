@@ -156,17 +156,6 @@ cp python.orig python
 sudo setcap cap_net_raw=pe python
 ```
 
-### Serial interfaces
-
-In order to connect a MeshCore app running in a browser to the companion
-radio device, a virtual null modem is required
-
-https://github.com/freemed/tty0tty
-
-Then, if the meshcore-pi companion device is listening on /dev/tnt0,
-the browser app can connect to /dev/tnt1
-
-
 ### Using an existing companion radio
 
 As part of the companion radio interface, the radio will send a copy of
@@ -191,6 +180,31 @@ $ patch -p 1 < ../meshcore-pi/meshcore.patch
 The companion radio has to be connected over a serial port. While in use
 as a radio for meshcore-pi, it can't be used with the app. It will not see
 a copy of anything transmitted, unless it is repeated back to the radio.
+
+
+### MeshTNC
+
+An alternative way to use an existing radio device is to flash it with
+MeshTNC
+
+https://github.com/datapartyjs/MeshTNC/
+
+MeshTNC is a tool for piping LoRa data to and from consumer grade radios.
+
+Simple connect the MeshTNC device by USB, and configure the serial port and
+radio parameters int he config file.
+
+
+### Serial interfaces
+
+In order to connect a MeshCore app running in a browser to the companion
+radio device, a virtual null modem is required
+
+https://github.com/freemed/tty0tty
+
+Then, if the meshcore-pi companion device is listening on /dev/tnt0,
+the browser app can connect to /dev/tnt1
+
 
 
 Configuration file

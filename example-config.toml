@@ -8,6 +8,7 @@
 # with the mesh. They include:
 #   * LoRa
 #   * ESP-NOW
+#   * MeshTNC (https://github.com/datapartyjs/MeshTNC/)
 #   * Companion radio hack
 #   * Mock interface
 #
@@ -82,6 +83,19 @@ dio3.tcxo_delay = 10
 
 # Interface name
 device = "wlan0"
+
+# MeshTNC device interface
+[interface.meshtnc]
+
+# UK/EU default
+frequency=869618000
+sf=8
+bw=62500
+cr=8
+
+# Serial port
+port = "/dev/ttyUSB0"
+
 
 [interface.mock]
 # This interface reads packets from file; if a file is specified.

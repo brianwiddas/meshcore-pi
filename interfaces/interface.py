@@ -72,6 +72,16 @@ def configure_interfaces(config):
                 logger.error(f"Unable to configure interface {i}: {repr(e)}")
                 raise
 
+        elif interface_type == "meshtnc":
+            try:
+                from . import meshtnc
+                i_face = meshtnc.MeshTNC(data)
+
+                interfaces.append(i_face)
+            except Exception as e:
+                logger.error(f"Unable to configure interface {i}: {repr(e)}")
+                raise
+
         else:
             logger.error(f"Interface {i} is unknown type {interface_type}")
 
