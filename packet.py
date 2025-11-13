@@ -153,7 +153,7 @@ class MC_Packet:
         self.header = 0
         self.path = bytearray()
         self._payload = b''
-        self._computed_payload = b''
+        self._computed_payload = None
 
         # Whether this is an external payload (ie inbound) or being generated locally (outbound)
         # An external payload may be modified and retransmitted; for instance by a repeater
