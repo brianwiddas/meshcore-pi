@@ -383,8 +383,9 @@ class CompanionRadio(BasicMesh):
         type = contactdata[32]
         flags = contactdata[33]
         pathlen = contactdata[34]
-        if pathlen:
-            path = contactdata[35:35+pathlen]
+
+        # If pathlen is 0 (ie, direct, zero-hop), path will be [] (as a bytes object, ie b'')
+        path = contactdata[35:35+pathlen]
 
         rest = contactdata[35+pathlen:]
         name = rest[0:32].rstrip(b'\x00')
