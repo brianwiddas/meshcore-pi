@@ -95,9 +95,16 @@ class AdvertData(AdvertBase):
             self._temperature = self._advert[start:start + 2]
             start += 2
 
-        # Not even sure what an advert without this would look like.
+        # This comment used to say "Not even sure what an advert without this
+        # would look like."
+        # Turns out (thanks to someone sending one), it breaks various things
+        # which didn't expect None as the name. So now we'll change the name
+        # the app displays
         if self._adv_flags & AdvertDataFlags.NAME:
             self._name = (self._advert[start:]).decode('utf-8', errors="replace")
+        else:
+            # Set it to something
+            self._name = '❓ Unnamed ' + hexlify(self._identity[:4]).decode()
 
     # Read-only properties - can't set these as they would break the signature
     @property

@@ -224,9 +224,9 @@ class CompanionRadio(BasicMesh):
 
         # PUSH_CODE_LOG_RX_DATA, (snr * 4), rssi, packet
         msg = bytes([PUSH_CODE_LOG_RX_DATA, snr, rssi]) + rx_packet.packet
-        await self.appinterface.tx(msg)
 
-        logger.info(f"Sent PUSH_CODE_LOG_RX_DATA to app")        
+        logger.info(f"Sending PUSH_CODE_LOG_RX_DATA to app")
+        await self.appinterface.tx(msg)
 
     async def rx_advert(self, rx_packet:packet.MC_Advert):
         await super().rx_advert(rx_packet)
@@ -235,8 +235,9 @@ class CompanionRadio(BasicMesh):
         print(f"  {rx_packet.advert.name}")
 
         msg = bytes([PUSH_CODE_ADVERT]) + rx_packet.advert.identity
+
+        logger.info(f"Pushing advert notification for {hexlify(rx_packet.advert.identity).decode()}")
         await self.appinterface.tx(msg)
-        logger.info(f"Pushed advert notification for {hexlify(rx_packet.advert.identity).decode()}")
 
     async def push_new_message_waiting(self):
         """
@@ -244,9 +245,9 @@ class CompanionRadio(BasicMesh):
         or channel message to be collected
         """
         msg = bytes([PUSH_CODE_MSG_WAITING])
-        await self.appinterface.tx(msg)
 
-        logger.info(f"Sent PUSH_CODE_MSG_WAITING to app")
+        logger.info(f"Sending PUSH_CODE_MSG_WAITING to app")
+        await self.appinterface.tx(msg)
 
     async def rx_text(self, rx_packet:packet.MC_Text):
         print(f"--[ {rx_packet.source.name} ]--------")
@@ -382,8 +383,9 @@ class CompanionRadio(BasicMesh):
         type = contactdata[32]
         flags = contactdata[33]
         pathlen = contactdata[34]
-        if pathlen:
-            path = contactdata[35:35+pathlen]
+
+        # If pathlen is 0 (ie, direct, zero-hop), path will be [] (as a bytes object, ie b'')
+        path = contactdata[35:35+pathlen]
 
         rest = contactdata[35+pathlen:]
         name = rest[0:32].rstrip(b'\x00')
@@ -550,9 +552,8 @@ class CompanionRadio(BasicMesh):
                 #   First 6 bytes of pubkey of the endpoint logged in to
                 msg = bytes([PUSH_CODE_LOGIN_SUCCESS, admin]) + src
 
+                logger.info(f"Sending PUSH_CODE_LOGIN_SUCCESS to app, logged in to {hexlify(src).decode()} admin={admin}")
                 await self.appinterface.tx(msg)
-
-                logger.info(f"Sent PUSH_CODE_LOGIN_SUCCESS to app, logged in to {hexlify(src).decode()} admin={admin}")
             else:
                 logger.debug("Unknown RESPONSE type")
 
@@ -567,9 +568,8 @@ class CompanionRadio(BasicMesh):
             #   Status data as received (everything after first 4 bytes of response)
             msg = bytes([PUSH_CODE_STATUS_RESPONSE, 0]) + packet.source.pubkey[0:6] + frame[4:]
 
+            logger.info("Sending PUSH_CODE_STATUS_RESPONSE to app")
             await self.appinterface.tx(msg)
-
-            logger.info("Sent PUSH_CODE_STATUS_RESPONSE to app")
 
         else:
             logger.warning("Unexpected response received")
@@ -861,8 +861,6 @@ class CompanionRadio(BasicMesh):
                 # We haven't really defined the maximum number of contacts.
                 # Maximum channels is arbritarily set in channel.py
                 # Set it to the max, 510 (255*2). Set the BLE PIN code to 123456
-                # Although 510 is the max, going above this seems not to cause
-                # any problems
                 response = struct.pack("<BBBBL", RESP_CODE_DEVICE_INFO, FIRMWARE_VER_CODE, 255, len(self.channels), 123456)
 
                 response += pad(FIRMWARE_BUILD_DATE, 12) + pad("Python Companion", 40) + pad(FIRMWARE_VERSION, 20)
