@@ -203,6 +203,11 @@ writer.password = "writer"
 # Public keys which can log in
 writer.keys = ["...32 bytes of hex public key...."]
 
+# Discover requests allowed?
+# Whether or not to respond to discover requests from clients. By default,
+# this is true. Set to false to disable.
+# Note that the Meshcore app does not support discovering room servers
+discover = true
 
 [device.repeater]
 
@@ -238,3 +243,9 @@ guest.password = "hello"
 guest.keys = ["...32 bytes of hex public key....", "....another one...."]
 # Let in anyone
 guest.open = true
+
+# Discover requests allowed?
+# Whether or not to respond to discover requests from clients. By default,
+# this is true. Set to false to disable.
+discover = true
+

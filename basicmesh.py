@@ -12,7 +12,7 @@ from identity import Identity, IdentityStore, SelfIdentity
 from exceptions import *
 from ed25519_wrapper import ED25519_Wrapper
 from dispatch import Dispatch
-from misc import pathstr
+from misc import delayed_call, pathstr
 
 import logging
 logger = logging.getLogger(__name__)
@@ -81,6 +81,9 @@ class BasicMesh:
         return
 
     async def rx_trace(self, rx_packet):
+        return
+
+    async def rx_control(self, rx_packet):
         return
 
     async def rx_grouptext(self, rx_packet):
@@ -326,6 +329,9 @@ class BasicMesh:
             elif isinstance(receivedpacket, packet.MC_Trace):
                 await self.rx_trace(receivedpacket)
 
+            elif isinstance(receivedpacket, packet.MC_Control):
+                await self.rx_control(receivedpacket)
+
             # Any general-purpose activity can go here (eg, printing the packet out)
             await self.rx(receivedpacket)
 
@@ -365,6 +371,14 @@ class BasicMesh:
                 current_taskgroup.get().create_task(self.transmit_packet(receivedpacket), name="TX repeater")
 
     async def transmit_packet(self, tx_packet:packet.MC_Packet, callback=None, priority=None):
+        """
+        Queue a packet for transmission
+        Parameters:
+        * tx_packet - packet to transmit
+        * callback - optional callback to call if duplicate is seen
+        * priority - optional priority for the dispatcher
+        """
+
         # Fix the packet's payload
         tx_packet.recompute()
 
@@ -400,6 +414,18 @@ class BasicMesh:
 
         self.stats["sent"] += 1
         self.stats[f"sent.{tx_packet.routename}"] += 1
+
+    async def transmit_later(self, tx_packet:packet.MC_Packet, delay_seconds, callback=None, priority=None):
+        """
+        Queue a packet for transission after a delay, without holding up the caller
+        Parameters:
+        * tx_packet - packet to transmit
+        * delay_seconds - number of seconds to wait before transmitting
+        * callback - optional callback to call if duplicate is seen
+        * priority - optional priority for the dispatcher
+        """
+        tx_call = self.transmit_packet(tx_packet, callback=callback, priority=priority)
+        current_taskgroup.get().create_task(delayed_call(delay_seconds, tx_call), name="Delayed TX")
 
     # Return statistics
     def get_stats(self):

@@ -1,6 +1,6 @@
 
 # Handy functions that don't really fit anywhere else
-
+import asyncio
 import time
 
 _unique_time = 0
@@ -175,3 +175,12 @@ class CallbackList(list):
     def reverse(self):
         super().reverse()
         self._trigger_callback()
+
+
+# Call a async routine after a delay
+async def delayed_call(delay, coro):
+    """
+    Await 'coro' after 'delay' seconds
+    """
+    await asyncio.sleep(delay)
+    return await coro

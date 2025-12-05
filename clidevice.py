@@ -6,7 +6,7 @@ from aiotools import current_taskgroup
 
 import struct
 import time
-from random import randbytes
+from random import random, randbytes
 from binascii import unhexlify, hexlify
 
 from dispatch import Dispatch
@@ -427,6 +427,78 @@ class CLIDevice(BasicMesh):
         stats['neighbours'] = len(self.neighbour_ids.get_all())
 
         return stats
+
+
+    # Handle control data requests
+    async def rx_control(self, rx_packet:packet.MC_Control):
+        # Is this a request or a response?
+        if (rx_packet.flags & 0xf0) != rx_packet.CTL_TYPE_NODE_DISCOVER_REQ:
+            # Something else, probably a response
+            logger.debug("Ignoring non-request control packet")
+            return
+        if rx_packet.is_flood():
+            # We only handle direct requests
+            logger.debug("Ignoring flooded control packet")
+            return
+        if rx_packet.pathlen != 0:
+            # We only handle zero-hop requests
+            logger.debug("Ignoring non-zero hop control packet")
+            return
+        logger.debug(f"Control request: {rx_packet.flags}")
+
+        if not self.config.get('discover', True):
+            logger.debug("Discovery disabled, ignoring request")
+            return
+
+        # Return entire public key, or just the prefix?
+        prefixonly = rx_packet.flags & 0x01
+
+        if len(rx_packet.controlpayload) == 9:
+            since_timestamp = struct.unpack("<L", rx_packet.controlpayload[5:])[0]
+        elif len(rx_packet.controlpayload) == 5:
+            since_timestamp = 0
+        else:
+            logger.warning(f"Invalid control payload length: {len(rx_packet.controlpayload)}")
+            return
+
+        (devicetype, tag) = struct.unpack("<BL", rx_packet.controlpayload[0:5])
+
+        # Device type(s) to find is a bitmask, one bit for each device type.
+        # So bit 1 = type 1 (chat client), bit 2 = type 2 (repeater), etc
+        # This means we can search for multiple device types at once, though
+        # this doesn't seem to be supported in the app at the moment
+        #
+        # It also theoretically means we can search for chat clients (ie,
+        # companion radios), which means this function is in the wrong place
+        # and should really be in BasicMesh, but searching for chat clients
+        # isn't supported at the moment, and probably won't be in future.
+
+        if devicetype & (1 << self.me.devicetype.value):
+            # We are the requested device type
+            if prefixonly:
+                # Return only the prefix (first 8 bytes) of our public key
+                pubkey = self.me.private_key.public_key[0:8]
+            else:
+                pubkey = self.me.private_key.public_key
+
+            # Flags: 0x90 (response) + our node type (eg, repeater)
+            flags = packet.MC_Packet.CTL_TYPE_NODE_DISCOVER_RESP | self.me.devicetype.value
+            # Response:
+            #  * SNR (1 byte)
+            #  * Tag from request (4 bytes)
+            #  * Public key (8 or 32 bytes)
+            response = struct.pack("<BL", int((rx_packet.snr or 0)*4) & 0xff, tag) + pubkey
+            response = packet.MC_Control_Out(flags, response)
+
+            # Potentially several devices are all going to receive this request
+            # at the same time, so pick a random delay before responding to
+            # avoid collisions
+            # Delay is between 0.5 and 4.0 seconds
+            delay = 0.5 + random() * 3.5
+
+            await self.transmit_later(response, delay)
+            logger.debug(f"Control response scheduled to send after {delay:0.2f} seconds")
+
 
     # Start flood and direct advert tasks
     async def start(self):

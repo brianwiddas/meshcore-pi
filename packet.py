@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 types = ['REQ', 'RESPONSE', 'TXT_MSG', 'ACK', 'ADVERT', 'GRP_TXT', 'GRP_DATA', 'ANON_REQ',
-         'PATH', 'TRACE', 'RESERVED1', 'RESERVED2', 'RESERVED3', 'RESERVED4', 'RESERVED5', 'RAW_CUSTOM']
+         'PATH', 'TRACE', 'MULTIPART', 'CONTROL', 'RESERVED3', 'RESERVED4', 'RESERVED5', 'RAW_CUSTOM']
 
 def typename(t):
     try:
@@ -28,7 +28,7 @@ def typename(t):
 #
 # MC_Packet         - base class for all Meshcore packets
 # +  MC_Incoming    - class for all incoming packets
-#    + MC_Unknown   - received packet which is not recognised (eg, type RESERVED1)
+#    + MC_Unknown   - received packet which is not recognised (eg, type RESERVED3)
 #    + MC_Advert    - received advert
 #    + MC_SrcDest   - any received packet with a source and destination (such as a text message)
 #      + MC_Text    - text message, including room server messages and CLI requests/responses
@@ -41,6 +41,7 @@ def typename(t):
 #      + MC_GroupData   - channel data message (not implemented)
 #    + MC_AnonReq   - received anonymous request
 #    + MC_Trace     - received trace
+#    + MC_Control   - received control data
 # + MC_Outgoing     - class for all outgoing packets
 #    + MC_Advert_Outgoing   - advert to send
 #    + MC_SrcDest_Out       - outgoing message with source and destination (don't use this class directly)
@@ -53,6 +54,7 @@ def typename(t):
 #    + MC_GroupText_Outgoing    - group/channel text message
 #    + MC_AnonReq_Out   - anonymous request to send
 #    + MC_Trace_Out     - outbound trace request or trace data
+#    + MC_Control_Out   - outbound control data
 #
 # To create an outbound packet (ie, to send), create an instance of the desired class. Each class
 # constructor's parameters are slightly different, which reflects what the class is for an how it's
@@ -63,10 +65,10 @@ def typename(t):
 # needed to construct the packet. For instance, MC_Advert requires the packet data, while MC_Text also needs
 # the client's identity and known contacts, so it can decode the message.
 #
-# A class method in MC_Inbound takes care of identifying the packet type and calling the correct class
+# A class method in MC_Incoming takes care of identifying the packet type and calling the correct class
 # constructor
 #
-# An MC_Inbound packet can be sent to the dispatcher the same way as an MC_Outbound packet; this is used
+# An MC_Incoming packet can be sent to the dispatcher the same way as an MC_Outgoing packet; this is used
 # for repeaters
 
 class MC_Packet:
@@ -112,8 +114,8 @@ class MC_Packet:
     TYPE_ANON_REQ = 0x07     # generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
     TYPE_PATH = 0x08         # returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
     TYPE_TRACE = 0x09        # trace a path, collecting SNI for each hop
-    TYPE_RESERVED1 = 0x0A    # FUTURE
-    TYPE_RESERVED2 = 0x0B    # FUTURE
+    TYPE_MULTIPART = 0x0A    # Multipart packet
+    TYPE_CONTROL = 0x0B      # Control/discovery packet
     TYPE_RESERVED3 = 0x0C    # FUTURE
     TYPE_RESERVED4 = 0x0D    # FUTURE
     TYPE_RESERVED5 = 0x0E    # FUTURE
@@ -141,6 +143,11 @@ class MC_Packet:
     # There appears to be only one defined, for a successful login via AnonReq
     # Failed logins are just ignored and left to time out in the client
     RESP_SERVER_LOGIN_OK = 0
+
+    # Control message types
+    CTL_TYPE_NODE_DISCOVER_REQ = 0x80
+    CTL_TYPE_NODE_DISCOVER_RESP = 0x90
+
 
     def __init__(self):
         self.header = 0
@@ -346,6 +353,8 @@ class MC_Incoming(MC_Packet):
             p = MC_Path(packet, selfid, ids)
         elif packettype == cls.TYPE_TRACE:
             p = MC_Trace(packet)
+        elif packettype == cls.TYPE_CONTROL:
+            p = MC_Control(packet)
         else:
             p = MC_Unknown(packet)
 
@@ -1321,7 +1330,6 @@ class MC_Trace_Out(MC_Outgoing):
     def compute_payload(self):
         return self.tag + self.auth + self.flags + self.tracepath
 
-
     def __str__(self):
         s = super().__str__()
         s += f"Path: {hexlify(self.tracepath).decode()}, ({len(self.tracepath)} hops)"
@@ -1330,3 +1338,55 @@ class MC_Trace_Out(MC_Outgoing):
         s += f"\nFlags: {hexlify(self.flags).decode()}"
 
         return s
+
+
+class MC_Control(MC_Incoming):
+    """
+    Control data
+
+    Received in response to a control data request, or as a request from another
+    device
+    """
+    def __init__(self, packet):
+        super().__init__(packet)
+        """
+        Scan the packet for information.
+        """
+        # Minimum 2 bytes
+        if len(self._payload) < 2:
+            raise InvalidMeshcorePacket("Control data payload is too short")
+
+        # Flags are first byte
+        self.flags = self._payload[0]
+        self.controlpayload = bytes(self._payload[1:])
+
+    def __str__(self):
+        s = super().__str__()
+        s += f"Flags: {self.flags:02x}\n"
+        s += f"Payload: {hexlify(self.controlpayload).decode()}\n"
+        return s
+
+class MC_Control_Out(MC_Outgoing):
+    """
+    Outbound control data request to be sent to other devices, or in response to an inbound request
+
+    Input:
+        * flags - upper 4 bits are type, lower 4 bits depend on the type
+        * payload - type-dependent payload
+    """
+    def __init__(self, flags, payload):
+        # Zero-hop direct packets only
+        super().__init__(self.TYPE_CONTROL, path=[])
+
+        self.flags = flags
+        self.controlpayload = payload
+
+    def compute_payload(self):
+        return bytes([self.flags]) + self.controlpayload
+
+    def __str__(self):
+        s = super().__str__()
+        s += f"Flags: {self.flags:02x}\n"
+        s += f"Payload: {hexlify(self.controlpayload).decode()}\n"
+        return s
+

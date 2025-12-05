@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 # ------------ Frame Protocol --------------
 
-FIRMWARE_VER_CODE = 5
+FIRMWARE_VER_CODE = 8
 
 FIRMWARE_BUILD_DATE = "9 May 2025"
-FIRMWARE_VERSION = "v1.6.0"
+FIRMWARE_VERSION = "v1.10.0"
 
 CMD_APP_START = 1
 CMD_SEND_TXT_MSG = 2
@@ -65,10 +65,19 @@ CMD_SIGN_FINISH = 35
 CMD_SEND_TRACE_PATH = 36
 CMD_SET_DEVICE_PIN = 37
 CMD_SET_OTHER_PARAMS = 38
-CMD_SEND_TELEMETRY_REQ = 39
+CMD_SEND_TELEMETRY_REQ = 39 # can deprecate this
 CMD_GET_CUSTOM_VARS = 40
 CMD_SET_CUSTOM_VAR = 41
 CMD_GET_ADVERT_PATH = 42
+CMD_GET_TUNING_PARAMS = 43
+# NOTE: CMD range 44..49 parked, potentially for WiFi operations
+CMD_SEND_BINARY_REQ = 50
+CMD_FACTORY_RESET = 51
+CMD_SEND_PATH_DISCOVERY_REQ = 52
+# 53?
+CMD_SET_FLOOD_SCOPE = 54   # v8+
+CMD_SEND_CONTROL_DATA = 55   # v8+
+
 
 RESP_CODE_OK = 0
 RESP_CODE_ERR = 1
@@ -93,6 +102,7 @@ RESP_CODE_SIGN_START = 19
 RESP_CODE_SIGNATURE = 20
 RESP_CODE_CUSTOM_VARS = 21
 RESP_CODE_ADVERT_PATH = 22
+RESP_CODE_TUNING_PARAMS = 23
 
 # These are _pushed_ to client app at any time
 PUSH_CODE_ADVERT = 0x80
@@ -107,6 +117,10 @@ PUSH_CODE_LOG_RX_DATA = 0x88
 PUSH_CODE_TRACE_DATA = 0x89
 PUSH_CODE_NEW_ADVERT = 0x8A
 PUSH_CODE_TELEMETRY_RESPONSE = 0x8B
+PUSH_CODE_BINARY_RESPONSE = 0x8C
+PUSH_CODE_PATH_DISCOVERY_RESPONSE = 0x8D
+PUSH_CODE_CONTROL_DATA = 0x8E   #v8+
+
 
 ERR_CODE_UNSUPPORTED_CMD = 1
 ERR_CODE_NOT_FOUND = 2
@@ -618,6 +632,27 @@ class CompanionRadio(BasicMesh):
 
         await self.appinterface.tx(msg)
 
+    # Return the results of a control message to the app
+    async def rx_control(self, rx_packet:packet.MC_Control):
+        logger.debug(f"Received Control message, flags = {rx_packet.flags:02x}, payload = {hexlify(rx_packet.controlpayload).decode()}")
+
+        if rx_packet.flags & 0x80 == 0:
+            # Packet is something other than a DISCOVER_REQ/DISCOVER_RESP packet
+            logger.warning(f"Unknown flags in control message: {rx_packet.flags:02x}")
+
+            return
+
+        # Send a message to the client:
+        # * PUSH_CODE_CONTROL_DATA
+        # * SNR, 1 byte
+        # * RSSI, 1 byte
+        # * RX path length (1 byte)
+        # * payload (incl. flags)
+
+        msg = bytes([PUSH_CODE_CONTROL_DATA, int((rx_packet.snr or 0) * 4) & 0xff, int(rx_packet.rssi or 0) & 0xff, len(rx_packet.path), rx_packet.flags]) + rx_packet.controlpayload
+
+        await self.appinterface.tx(msg)
+
 
     async def run(self):
 
@@ -644,7 +679,7 @@ class CompanionRadio(BasicMesh):
 
                 (r_freq, r_bw, r_sf, r_cr, r_tx_pow, r_tx_max) = self.dispatch.get_radioconfig()
 
-                # Response code, device type (0=chat, 1=repeater, 2=sensor, 3=room), TX power, max TX power
+                # Response code, device type (1=chat, 2=repeater, 3=room, 4=sensor), TX power, max TX power
                 response = struct.pack("<BBBB", RESP_CODE_SELF_INFO, self.me.devicetype.value, r_tx_pow, r_tx_max)
                 # Public key
                 response += self.me.private_key.public_key
@@ -974,6 +1009,18 @@ class CompanionRadio(BasicMesh):
                 else:
                     logger.debug(f"Contact found: {contact.name}, advert path = {pathstr(contact.advertpath)}")
                     response = struct.pack("<BLB", RESP_CODE_ADVERT_PATH, contact.rxtime, len(contact.advertpath)) + bytes(contact.advertpath)
+
+            elif command == CMD_SEND_CONTROL_DATA:
+                # Send control data (probably a discovery request, but the actual payload
+                # comes from the app)
+                flags = frame[1]
+                payload = frame[2:]
+                logger.debug(f"CMD_SEND_CONTROL_DATA: flags={flags:02x}, payload={hexlify(payload).decode()}")
+
+                control = packet.MC_Control_Out(flags, payload)
+                await self.transmit_packet(control)
+
+                response = OK
 
             else:
                 logger.warning(f"Unknown command: {command}")
