@@ -44,7 +44,11 @@ class MeshTNC(Interface):
 
         self._connected = False
 
-        self.lastpacket = b''
+        # Record the last packet sent, so we know if it comes back to us
+        # Can't initialise to an empty string, or it will match all packets in
+        # startswith() below
+
+        self.lastpacket = b'NOPACKET'
 
         # Fetch all the config we need
         # Default config is UK/EU Narrow
@@ -134,10 +138,12 @@ class MeshTNC(Interface):
                         logger.warning(f"Error decoding RXLOG line from MeshTNC: {line.decode(errors='replace')}, {repr(e)}")
                         continue
 
+                    print("Data:", hexlify(data))
                     # Add the packet to the receive queue
                     await self.rx_q.put((data, rssi, snr))
 
                 else:
+                    print("Command response")
                     # Command response, put it in the CLI response queue
                     await self._rx_cli.put(line)
         except Exception as e:
