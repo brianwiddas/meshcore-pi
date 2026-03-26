@@ -50,6 +50,9 @@ class CompanionInterface(Interface):
     A lightly modified radio with an unofficial extra CMD (CMD_SEND_RAW_PACKET,
     0xc0, definitely not approved by any Meshcore developers) can be used as
     a transceiver.
+
+    To be honest, since MeshTNC exists there's little use for his and the
+    CND_SEND_RAW_PACKET patch no longer works against the MeshCore codebase.
     """
 
     def __init__(self, config:ConfigView):
@@ -77,6 +80,9 @@ class CompanionInterface(Interface):
 
         # If we can't transmit, tell the user only once
         self.txwarned = False
+
+        logger.warning("Companion radio interface is deprecated and will be removed")
+        print("* Companion Radio interface is deprecated and will be removed. Use MeshTNC *")
 
     # Send frame to radio
     async def tx(self, frame):

@@ -177,15 +177,22 @@ $ cd MeshCore
 $ patch -p 1 < ../meshcore-pi/meshcore.patch
 ```
 
+Note that this patch has stopped working with newer versions of the
+MeshCore software.
+
 The companion radio has to be connected over a serial port. While in use
 as a radio for meshcore-pi, it can't be used with the app. It will not see
 a copy of anything transmitted, unless it is repeated back to the radio.
 
+Since MeshTNC now exists, that is the better option for using an existing
+radio and should be used instead. The companion radio interface will now
+show a deprecation warning when used, and will be entirely removed at some
+point.
 
 ### MeshTNC
 
-An alternative way to use an existing radio device is to flash it with
-MeshTNC
+An alternative (better, supported) way to use an existing radio device is
+to flash it with MeshTNC
 
 https://github.com/datapartyjs/MeshTNC/
 
