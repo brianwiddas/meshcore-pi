@@ -642,7 +642,7 @@ class MC_Path(MC_SrcDest):
         if self.packetdata is not None:
             pathlen = self.packetdata[0]
             # If pathlen = 0 (direct), pathdata = []
-            self.pathdata = self.packetdata[0:pathlen]
+            self.pathdata = self.packetdata[1:1+pathlen]
 
             self.extra_type = None
             # Gather up anything left after the path
