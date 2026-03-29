@@ -184,3 +184,19 @@ async def delayed_call(delay, coro):
     """
     await asyncio.sleep(delay)
     return await coro
+
+
+# Fletcher16 checksum
+# https://en.wikipedia.org/wiki/Fletcher%27s_checksum
+def fletcher16(data):
+    """
+    Calculate the Fletcher16 checksum of the given data
+    """
+    sum1 = 0
+    sum2 = 0
+
+    for b in data:
+        sum1 = (sum1 + b) % 255
+        sum2 = (sum2 + sum1) % 255
+
+    return (sum2 << 8) | sum1

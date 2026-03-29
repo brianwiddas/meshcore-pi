@@ -84,6 +84,16 @@ dio3.tcxo_delay = 10
 # Interface name
 device = "wlan0"
 
+# Shared secret, if talking to ESP-NOW bridges
+# This is the default secret from MeshCore, in examples/simple_repeater/MyMesh.cpp
+# secret = "LVSITANOS"
+
+# Whether to talk to plaintext ESP-NOW devices such as ESP-NOW companions
+# Default is true if secret is not set, otherwise false. If secret is set and
+# plaintext is true, it will send and receive both plaintext and encrypted
+# messages. If secret is not set and plaintext is false, it will do nothing.
+# plaintext = true
+
 # MeshTNC device interface
 [interface.meshtnc]
 

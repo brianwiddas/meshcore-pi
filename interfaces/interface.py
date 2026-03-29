@@ -41,11 +41,13 @@ def configure_interfaces(config):
 
         if interface_type == "espnow":
             interface_name = data.get("device")
+            bridge_secret = data.get("secret", None)
+            plaintext = data.get("plaintext", None)
             if interface_name is None:
                 logger.error(f"Missing WiFi device name for {i}")
             try:
                 from . import espnow as espnow_interface
-                i_face = espnow_interface.ESPNOWInterface(interface_name)
+                i_face = espnow_interface.ESPNOWInterface(interface_name, bridge_secret, plaintext)
 
                 interfaces.append(i_face)
             except Exception as e:

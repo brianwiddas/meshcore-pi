@@ -84,6 +84,12 @@ $ pip install rpi-lgpio
 
 Using ESP-NOW requires a WiFi interface which can support monitor mode.
 
+The ESP-NOW interface can support either encrypted messages (as used in
+LoRa/ESP-NOW bridges; device types ending in _repeater_bridge_espnow) or
+unencrypted devices such as the Generic_ESPNOW_* series. It can do both
+modes at once, receiving encrypted and unencrypted messages, sending both,
+and even acting as a bridge/repeater from one to the other.
+
 ``iw list`` will show the capabilities of your WiFi interface; for instance:
 
 ```
@@ -157,6 +163,8 @@ sudo setcap cap_net_raw=pe python
 ```
 
 ### Using an existing companion radio
+
+(Deprecated, see below)
 
 As part of the companion radio interface, the radio will send a copy of
 every received packet to the application. This is how the "number of
@@ -382,6 +390,7 @@ Interfaces:
 * lorainterface.py - SX126x LoRa interface
 * mockinterface.py - Pretend, read-only interface which will read packets
   from a file
+* meshtnc.py - use an existing MeshCore radio as an interface
 * companioninterface.py - (Mis)use a companion radio as an interface.
 
 Cypto:
@@ -414,12 +423,10 @@ Contact
 Please feel free to raise issues or PRs.
 
 If you're in the UK, you could also try sending a message to the
-#meshcorepi channel, or messaging me directly at
-
-```
-659228096caba81b8b32f6e15eb031eea606fd5dfab0302275f848bbac99b24a
-```
+#meshcorepi channel.
 
 Please be aware that I live in a slightly spotty coverage area as far as
 Meshcore is concerned, so while your message will *probably* get through,
 it might not.
+
+There is also a meshcore-pi development thread on the MeshCore Discord.
