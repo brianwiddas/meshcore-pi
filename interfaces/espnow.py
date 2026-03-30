@@ -50,7 +50,9 @@ class ESPNOWInterface(Interface):
         super().__init__() 
         self._name = "ESP-NOW interface"
 
-        self.espnow = ESPythoNow(interface=interfacename, accept_all=True, callback=self.rx_callback)
+        self.espnow = None
+
+        self.interfacename = interfacename
         self.secret = secret
 
         # If "plain" is None, set it to True if "secret" is None, False otherwise
@@ -62,17 +64,6 @@ class ESPNOWInterface(Interface):
         if self.secret is None and not self.plain:
             logger.warning("Secret is not set, but plaintext is disabled. This interface will not send or receive any packets.")
 
-        # Start the ESP-NOW interface
-        self.espnow.start()
-
-        # Is it running?
-        self.espnow.listener.thread.join(timeout=1)
-
-        if self.espnow.listener.thread.is_alive():
-            logger.info("ESP-NOW interface started")
-        else:
-            logger.warning("ESP-NOW interface failed to start")
-            raise RuntimeError("ESP-NOW interface failed to start")
 
     def xor(self, data):
         """
@@ -137,6 +128,10 @@ class ESPNOWInterface(Interface):
     async def transmit(self, packetdata):
         logger.debug(f"Transmitting: {hexlify(packetdata).decode()}")
 
+        if self.espnow is None:
+            logger.warning("ESP-NOW interface is not running, not transmitting")
+            return
+
         # Send encrypted and/or plaintext packets, depending on settings.
         # It's fine to send both, there are no airtime limits to worry about and WiFi is fast
         if self.secret is not None:
@@ -159,3 +154,17 @@ class ESPNOWInterface(Interface):
     async def start(self):
         self.eventloop = asyncio.get_running_loop()
 
+        espnow = ESPythoNow(interface=self.interfacename, accept_all=True, callback=self.rx_callback)
+
+        # Start the ESP-NOW interface
+        espnow.start()
+
+        # Is it running?
+        espnow.listener.thread.join(timeout=1)
+
+        if espnow.listener.thread.is_alive():
+            logger.info("ESP-NOW interface started")
+            self.espnow = espnow
+        else:
+            logger.warning("ESP-NOW interface failed to start")
+            raise RuntimeError("ESP-NOW interface failed to start")
