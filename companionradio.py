@@ -340,9 +340,11 @@ class CompanionRadio(BasicMesh):
         # Type (Chat, repeater, etc), flags, out path length
         if contact.path is None:
             path = bytes()
+            pathlen = 0xff     # OUT_PATH_UNKOWN
         else:
             path = contact.path
-        contactresponse += struct.pack("<BBB", contact.advert.adv_type.value, contact.advert.adv_flags.value, len(path))
+            pathlen = len(path)
+        contactresponse += struct.pack("<BBB", contact.advert.adv_type.value, contact.advert.adv_flags.value, pathlen)
         # Path, padded to 64 bytes
         contactresponse += pad(path, 64)
         # Advert name, padded to 32 bytes
@@ -398,8 +400,14 @@ class CompanionRadio(BasicMesh):
         flags = contactdata[33]
         pathlen = contactdata[34]
 
-        # If pathlen is 0 (ie, direct, zero-hop), path will be [] (as a bytes object, ie b'')
-        path = contactdata[35:35+pathlen]
+        # if pathlen is 0xff, it's a flood
+        if pathlen == 0xff:
+            path = None
+            # Set pathlen to 0 so we don't lop off 255 non-existent bytes from the contact data
+            pathlen = 0
+        else:
+            # If pathlen is 0 (ie, direct, zero-hop), path will be [] (as a bytes object, ie b'')
+            path = contactdata[35:35+pathlen]
 
         rest = contactdata[35+pathlen:]
         name = rest[0:32].rstrip(b'\x00')
