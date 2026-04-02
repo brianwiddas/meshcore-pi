@@ -10,10 +10,8 @@ interfaces such as the Waveshare LoRa HAT or an HT-RA62 connected to SPI
 and GPIO.
 
 It can also communicate over ESP-NOW with a suitable WiFi interface (one
-which can be put into "monitor" mode), and for experimenting, it can use
-an existing companion radio (such as a Heltec) running MeshCore as a
-receive-only radio interface, or (if you modify it slightly) as a
-transmitter too.
+which can be put into "monitor" mode), or use an existing radio running
+MeshTNC as a LoRa interface.
 
 It is able to be a companion radio (which can connect to the MeshCore app
 over WiFi or serial), a room server or a repeater, or several of these at
@@ -116,9 +114,6 @@ required this fork:
 
 https://github.com/thau0x01/nexmon
 
-It also worked on an ASUS laptop running Linux, which has a suitable WiFi
-interface.
-
 For nexmon on a Raspberry Pi 3, the following seems to work
 
 ```
@@ -136,6 +131,11 @@ For nexmon on a Raspberry Pi 3, the following seems to work
 
 mon0 will need to be set in the config file as the WiFi interface under the
 espnow section
+
+I have also had ESP-NOW working on an ASUS laptop running Linux, which has
+a suitable WiFi interface. Additionally, using a WiFi dongle which supports
+monitor mode (in my case, one using the RTL8188EU chipset) I have had it
+running on both Raspberry Pi and x86 devices
 
 For other Linux devices, the simplest way to enable monitor mode is using the
 ``prep.sh`` script in ``lib/ESPythoNOW/``
