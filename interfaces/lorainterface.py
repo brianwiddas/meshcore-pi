@@ -126,13 +126,9 @@ class LoRaInterface(Interface):
         self.airtime_txtimestamp = deque([0,0,0,0,0], maxlen=5)
         self.airtime_txtime = deque([0,0,0,0,0], maxlen=5)
 
-        logger.debug(f"Configired LoRa interface on SPI{spi}:{cs} for {self.freq/1000000:0.3f}MHz, BW: {self.bw/1000}KHz, SF: {self.sf}, CR: {self.cr}")
+        logger.debug(f"Configured LoRa interface on SPI{spi}:{cs} for {self.freq/1000000:0.3f}MHz, BW: {self.bw/1000}KHz, SF: {self.sf}, CR: {self.cr}")
 
     # Receive thread
-    #
-    # FIXME: This thread busywaits on data from the LoRa chip. This could be a setting I've missed,
-    # or it might just be how the library works. Either way, it sits there using up an entire core.
-    # Need either better config, a better library, or to rewrite the current one so it behaves nicely.
     def rx_thread(self):
         logger.debug("LoRa rx thread listening")
 
@@ -140,7 +136,21 @@ class LoRaInterface(Interface):
     
         s = ["STATUS_DEFAULT", "STATUS_TX_WAIT", "STATUS_TX_TIMEOUT", "STATUS_TX_DONE", "STATUS_RX_WAIT", "STATUS_RX_CONTINUOUS", "STATUS_RX_TIMEOUT", "STATUS_RX_DONE", "STATUS_HEADER_ERR", "STATUS_CRC_ERR", "STATUS_CAD_WAIT", "STATUS_CAD_DETECTED", "STATUS_CAD_DONE"]
         while True:
-            self.LoRa.wait()
+            # A call to LoRa.wait() without a timeout causes it to simply
+            # loop reading the SX126x status until something happens (ie, a
+            # packet is received).
+            #
+            # In doing so, it will happily sit chewing up an entire CPU core.
+            # Instead, we will call it with 1 nanosecond timeout, which
+            # means it almost immediately returns with False, and we can
+            # sleep for a millisecond before trying again. Given the speed
+            # of LoRa, we won't miss anything, but CPU consumption goes down
+            # from 100% of a core to a percent or so.
+            #
+            # Once we get a packet, wait() returns True and we can proceed
+            # as if we'd called it without a timeout.
+            while not self.LoRa.wait(timeout=0.000000001):
+                time.sleep(0.001)
 
             status = self.LoRa.status()
             logger.debug(f"Status: {s[status]}")
