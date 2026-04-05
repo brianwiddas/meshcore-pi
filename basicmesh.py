@@ -77,7 +77,7 @@ class BasicMesh:
     async def rx_anonreq(self, rx_packet):
         return
 
-    async def rx_resposne(self, rx_packet):
+    async def rx_response(self, rx_packet):
         return
 
     async def rx_trace(self, rx_packet):
