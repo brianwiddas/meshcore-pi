@@ -138,12 +138,10 @@ class MeshTNC(Interface):
                         logger.warning(f"Error decoding RXLOG line from MeshTNC: {line.decode(errors='replace')}, {repr(e)}")
                         continue
 
-                    print("Data:", hexlify(data))
                     # Add the packet to the receive queue
                     await self.rx_q.put((data, rssi, snr))
 
                 else:
-                    print("Command response")
                     # Command response, put it in the CLI response queue
                     await self._rx_cli.put(line)
         except Exception as e:
