@@ -68,6 +68,9 @@ class CLIDevice(BasicMesh):
             logger.debug("Flood adverts disabled")
             return
 
+        # Wait five seconds to allow interfaces to become ready before sending any adverts
+        await asyncio.sleep(5)
+
         while True:
             await self.tx_advert(flood=True, priority=Dispatch.PRIORITY_SCHEDULED_ADVERT)
             self.last_flood_advert = time.time()
@@ -93,8 +96,9 @@ class CLIDevice(BasicMesh):
             logger.debug("Direct adverts disabled")
             return
 
-        # Sleep for 2 seconds to allow flood advert to be sent first if both are enabled
-        await asyncio.sleep(2)
+        # Wait five seconds to allow interfaces to become ready before sending any adverts, and
+        # wait a couple more seconds to allow flood advert to be sent first if both are enabled
+        await asyncio.sleep(7)
 
         while True:
             # Don't send a direct advert if we sent a flood advert in the last 2 minutes,
