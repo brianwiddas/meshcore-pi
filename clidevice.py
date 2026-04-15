@@ -317,11 +317,12 @@ class CLIDevice(BasicMesh):
 
         return data
 
-    def login_success(self, pubkey, admin=False):
+    def login_success(self, pubkey, admin=False, perms=AnonIdentity.PERM_ACL_GUEST):
         # Successful login
         dest = AnonIdentity(pubkey)
         dest.create_shared_secret(self.me.private_key)
         dest.admin = admin
+        dest.perms = perms
         return dest
 
     def login(self, pubkey, password):
@@ -337,26 +338,26 @@ class CLIDevice(BasicMesh):
 
         if admin_pw is not None and password == admin_pw.encode('utf8'):
             logger.info(f"Admin login for {hexlify(pubkey).decode('utf8')} by password")
-            return self.login_success(pubkey, admin=True)
+            return self.login_success(pubkey, admin=True, perms=AnonIdentity.PERM_ACL_ADMIN)
 
         if hexlify(pubkey).decode('utf8') in admin_keys:
             logger.info(f"Admin login for {hexlify(pubkey).decode('utf8')} by pubkey")
-            return self.login_success(pubkey, admin=True)
+            return self.login_success(pubkey, admin=True, perms=AnonIdentity.PERM_ACL_ADMIN)
 
         if self.config.get('guest.open', True):
             logger.info(f"Guest login for {hexlify(pubkey).decode('utf8')}")
-            return self.login_success(pubkey, admin=False)
+            return self.login_success(pubkey, admin=False, perms=AnonIdentity.PERM_ACL_GUEST)
 
         guest_pw = self.config.get('guest.password')
         guest_keys = self.config.get('guest.pubkeys', [])
 
         if guest_pw is not None and password == guest_pw.encode('utf8'):
             logger.info(f"Guest login for {hexlify(pubkey).decode('utf8')} by password")
-            return self.login_success(pubkey, admin=False)
+            return self.login_success(pubkey, admin=False, perms=AnonIdentity.PERM_ACL_GUEST)
 
         if hexlify(pubkey).decode('utf8') in guest_keys:
             logger.info(f"Guest login for {hexlify(pubkey).decode('utf8')} by pubkey")
-            return self.login_success(pubkey, admin=False)
+            return self.login_success(pubkey, admin=False, perms=AnonIdentity.PERM_ACL_GUEST)
 
         # Login failed
         return None
@@ -381,9 +382,9 @@ class CLIDevice(BasicMesh):
         #  * Response (RESP_SERVER_LOGIN_OK)
         #  * Reccomended keepalive interval (deprecated, now always 0)
         #  * is_admin?
-        #  * Permissions (various PERM_ACL_ options, currently 0; PERM_ACL_GUEST)
+        #  * Permissions (various PERM_ACL_ options)
         #  * random number (4 bytes)
-        data = bytes([packet.MC_Packet.RESP_SERVER_LOGIN_OK, 0, 1 if dest.admin else 0, 0]) + randbytes(4)
+        data = bytes([packet.MC_Packet.RESP_SERVER_LOGIN_OK, 0, 1 if dest.admin else 0, dest.perms]) + randbytes(4)
 
         if rx_packet.is_flood():
             # Return a PATH packet with the response

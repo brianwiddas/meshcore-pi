@@ -10,6 +10,7 @@ from collections import deque
 
 
 from exceptions import *
+from identity import AnonIdentity
 import packet
 from clidevice import CLIDevice
 from misc import split_unicode_string, unique_time
@@ -23,10 +24,16 @@ class Client():
     """
     Client record
     """
-    def __init__(self, pubkey, destination, last_message):
-        self.pubkey = pubkey
+    def __init__(self, destination, last_message_sent, last_message_received=0):
         self.destination = destination
-        self.last_message = last_message
+        # Timestamp of most recent message sent to this client
+        self.last_message_sent = last_message_sent
+        # Timestamp of most recent message received from this client
+        self.last_message_received = last_message_received
+
+    @property
+    def pubkey(self):
+        return self.destination.pubkey
 
 class Message():
     """
@@ -59,6 +66,7 @@ class Room(CLIDevice):
         # Message queue
         self.messagequeue = deque(maxlen=32)
 
+
     async def rx_cli_data(self, rx_packet:packet.MC_Text):
         print(f"--[ {rx_packet.source.name} ]--------")
         print(time.ctime(rx_packet.timestamp))
@@ -71,9 +79,34 @@ class Room(CLIDevice):
         print(time.ctime(rx_packet.timestamp))
         print(f"  Text: {rx_packet.text.decode(errors='replace')}")
 
-        if self.config.get('readonly', False) and not (rx_packet.source.admin or getattr(rx_packet.source, 'writer', False)):
+        if rx_packet.source.perms & AnonIdentity.PERM_ACL_ROLE_MASK < AnonIdentity.PERM_ACL_READ_WRITE:
             logger.info(f"Read only mode, ignoring text message from {rx_packet.source.name}")
             return
+
+        # At this point, the sender is known to the room server (ie, it has logged
+        # in at some point), but it is not necessarily a current client, eg. it
+        # could have been disconnected
+        client = self.clients.get(rx_packet.source.pubkey)
+        if client is None:
+            logger.debug(f"Message from non-current client {hexlify(rx_packet.source.pubkey).decode()}, ignoring")
+            return
+
+        if rx_packet.timestamp < client.last_message_received:
+            # Possible replay? Or just a very delayed messaage? Either way, ignore it
+            logger.debug(f"Message from client {hexlify(rx_packet.source.pubkey).decode()} with old timestamp {rx_packet.timestamp} (last received {client.last_message_received}), ignoring")
+            return
+
+        if rx_packet.timestamp == client.last_message_received:
+            # Retransmitted message, presumably because the client didn't receive an acknowledgement.
+            # Since we have already received this message, we will have processed it so we don't need
+            # to do it again.
+            # Ignore it (it has already been ACKed by BasicMesh)
+            logger.debug(f"Retransmitted message from client {hexlify(rx_packet.source.pubkey).decode()}, attempt number {rx_packet.attempt+1}, ignoring")
+            # FIXME - ACKs might need to be done here instead
+            return
+
+        # Update the last message received time for this client
+        client.last_message_received = rx_packet.timestamp
 
         # A full length text message could be 4 bytes too long with a pubkey prefix on the start of it
         text = rx_packet.text
@@ -98,12 +131,12 @@ class Room(CLIDevice):
         """
         now = int(time.time())
 
-        if client.last_message == 0:
+        if client.last_message_sent == 0:
             welcome_message = self.config.get('welcome')
 
             if welcome_message is None:
                 logger.debug("New client, setting timestamp to {client.last_message} (now)")
-                client.last_message = now
+                client.last_message_sent = now
             else:
                 logger.debug("New client, sending welcome message")
                 # Split the welcome message into chunks small enough to fit in a text message, less 4 bytes for the
@@ -114,7 +147,7 @@ class Room(CLIDevice):
                     welcome = Message(text, self.me.private_key.public_key)
                     welcome.timestamp = now
 
-                    logger.debug(f"New client, sending welcome text {count+1}/{len(welcome_texts)}; setting timestamp to {client.last_message} (now)")
+                    logger.debug(f"New client, sending welcome text {count+1}/{len(welcome_texts)}; setting timestamp to {client.last_message_sent} (now)")
 
                     yield welcome
 
@@ -123,12 +156,12 @@ class Room(CLIDevice):
                 # into multiple parts - if the client disconnects before all the parts are sent,
                 # then they will get all the parts when they reconnect, even the ones they already
                 # got.
-                client.last_message = now
+                client.last_message_sent = now
 
         while True:
             # Look for any messages newer than the last message seen
             for message in self.messagequeue:
-                if message.timestamp <= client.last_message:
+                if message.timestamp <= client.last_message_sent:
                     continue
                 if message.pubkey == client.pubkey[0:4]:
                     # Don't send a client's own messages back to itself
@@ -155,7 +188,7 @@ class Room(CLIDevice):
             text = packet.MC_Text_Out(self.me, client.destination, signedmessage,
                                         packet.MC_Packet.TXT_TYPE_SIGNED_PLAIN, timestamp=message.timestamp)
             if await self.send_text_with_retries(text):
-                client.last_message = message.timestamp
+                client.last_message_sent = message.timestamp
 
                 self.stats["room.pushed"] += 1
             else:
@@ -163,16 +196,18 @@ class Room(CLIDevice):
                 del self.clients[client.pubkey]
                 return
 
-
+    # This is called when the client which sent the login message (in rx_packet)
+    # has successfully logged in, and is used to set up the client record and start
+    # loop to send them new messages as they arrive
     async def logged_in(self, rx_packet):
         client_pubkey = rx_packet.senderpubkey
         since = rx_packet.synctime
         source = self.ids.find_by_pubkey(client_pubkey)
 
         if self.clients.get(client_pubkey) is None:
-            # Start up a new client loop for    this client
+            # Start up a new client loop for this client
             logger.debug(f"Creating new client entry: pubkey {hexlify(client_pubkey).decode()}, last message {since} ({time.ctime(since)})")
-            client = Client(client_pubkey, source, since)
+            client = Client(source, since)
             current_taskgroup.get().create_task(self.client_loop(client), name=f"Client loop ({hexlify(client_pubkey).decode()})")
 
             self.clients[client_pubkey] = client
@@ -199,13 +234,20 @@ class Room(CLIDevice):
             writerlogin = True
 
         if writerlogin:
-            response = self.login_success(pubkey, admin=False)
+            response = self.login_success(pubkey, admin=False, perms=AnonIdentity.PERM_ACL_READ_WRITE)
             response.writer = True
             return response
 
         # Not a writer login, so pass to parent class to see if it's an admin or a guest
-        return super().login(pubkey, password)
+        response = super().login(pubkey, password)
 
+        if response is not None:
+            # If it's a guest login, but the room isn't read-only, then upgrade them to
+            # read/write
+            if response.perms == AnonIdentity.PERM_ACL_GUEST and not self.config.get('readonly', False):
+                response.perms = AnonIdentity.PERM_ACL_READ_WRITE
+
+        return response
 
     # Room server device stats
     # Same as repeater device stats, but with a couple of extra stats at the end

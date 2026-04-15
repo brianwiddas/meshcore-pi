@@ -206,6 +206,13 @@ class Destination:
     The recipient will either be an Identity or an AnonIdentity
     """
 
+    PERM_ACL_ROLE_MASK = 3  # lower 2 bits
+
+    PERM_ACL_GUEST = 0
+    PERM_ACL_READ_ONLY = 1
+    PERM_ACL_READ_WRITE = 2
+    PERM_ACL_ADMIN = 3
+
     def __init__(self):
         # Flood
         self.path = None
@@ -214,6 +221,9 @@ class Destination:
 
         # Is this an admin identity (for repeaters, room servers, etc)?
         self.admin = False
+
+        # Permissions for this identity
+        self.perms = self.PERM_ACL_GUEST
 
         # Signal-to-noise ratio (for repeater neighbour data)
         self.snr = None
