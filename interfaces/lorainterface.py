@@ -130,9 +130,9 @@ class LoRaInterface(Interface):
 
     # Receive thread
     #
-    # FIXME: This thread busywaits on data from the LoRa chip. This could be a setting I've missed,
-    # or it might just be how the library works. Either way, it sits there using up an entire core.
-    # Need either better config, a better library, or to rewrite the current one so it behaves nicely.
+    # LoRaRF's wait() spins in a Python loop until its interrupt handler stores the IRQ status, which
+    # used up an entire core. The interrupt arrives on its own, so sleep until it has, then let wait()
+    # (which returns at once) do the rest.
     def rx_thread(self):
         logger.debug("LoRa rx thread listening")
 
@@ -140,6 +140,9 @@ class LoRaInterface(Interface):
     
         s = ["STATUS_DEFAULT", "STATUS_TX_WAIT", "STATUS_TX_TIMEOUT", "STATUS_TX_DONE", "STATUS_RX_WAIT", "STATUS_RX_CONTINUOUS", "STATUS_RX_TIMEOUT", "STATUS_RX_DONE", "STATUS_HEADER_ERR", "STATUS_CRC_ERR", "STATUS_CAD_WAIT", "STATUS_CAD_DETECTED", "STATUS_CAD_DONE"]
         while True:
+            if self.LoRa._irq != -1:                # interrupt mode: the handler sets _statusIrq for us
+                while not self.LoRa._statusIrq:
+                    time.sleep(0.002)
             self.LoRa.wait()
 
             status = self.LoRa.status()
